@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <title>Торговий бот (Binance Futures)</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1"
+    />
+    <style>
+      :root {
+        --bg: #000000;
+        --panel: #000000;
+        --panel-2: #0a0a0a;
+        --border: #262626;
+        --text: #d9d9d9;
+        --accent: #5b8cff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto,
+          Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        background: var(--bg);
+        color: var(--text);
+      }
+      header {
+        padding: 20px;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 16px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+      }
+      .combo {
+        position: relative;
+      }
+      .combo input {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        outline: none;
+      }
+      .dropdown {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        max-height: 260px;
+        overflow: auto;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+        display: none;
+        z-index: 20;
+      }
+      .dropdown.open {
+        display: block;
+      }
+      .option {
+        padding: 10px 12px;
+        cursor: pointer;
+        border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .option:hover,
+      .option.active {
+        background: var(--panel-2);
+      }
+      .badge {
+        color: var(--text);
+        opacity: 0.7;
+        font-size: 12px;
+        background: #0a0a0a;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+      }
+      /* Старт — червона */
+      button#startBtn {
+        padding: 12px 16px;
+        border-radius: 10px;
+        border: 1px solid #a01515;
+        background: linear-gradient(180deg, #ff3b3b, #cc1f1f);
+        color: #ffffff;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button#startBtn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .grid {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+      }
+      .title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .title h2,
+      .title h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        color: var(--text);
+      }
+      .signal {
+        font-size: 18px;
+        font-weight: 800;
+      }
+      /* Кольори сигналів */
+      .signal.long {
+        color: #23d18b; /* зелений */
+      }
+      .signal.short {
+        color: #ff5c5c; /* червоний */
+      }
+      .signal.neutral {
+        color: #4ea1ff; /* синій */
+      }
+      .row2 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-top: 10px;
+      }
+      .kvs {
+        font-size: 13px;
+        color: var(--text);
+        opacity: 0.85;
+      }
+      .tf-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      @media (max-width: 900px) {
+        .tf-grid {
+          grid-template-columns: 1fr;
+        }
+        .row {
+          grid-template-columns: 1fr;
+        }
+      }
+      .small {
+        font-size: 12px;
+        color: var(--text);
+      }
+      .loader {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #91a3ff;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        vertical-align: -3px;
+        margin-right: 8px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #0a0a0a;
+        border: 1px solid var(--border);
+        font-size: 12px;
+        color: var(--text);
+      }
+      .err {
+        color: #ff5c5c;
+        font-weight: 600;
+      }
+      /* Більший шрифт для сумарного бала */
+      #mainScore {
+        font-size: 18px;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <div class="row">
+          <div class="combo" id="symbolCombo">
+            <input
+              id="symbolInput"
+              type="text"
+              placeholder="Введіть назву валюти (напр., BTCUSDT)…"
+              autocomplete="off"
+            />
+            <div class="dropdown" id="dropdown"></div>
+          </div>
+          <button id="startBtn" disabled>Старт</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div id="status" class="small"></div>
+
+      <div class="grid">
+        <div class="card" id="mainCard">
+          <div class="title">
+            <h2>Головний сигнал (30–60 хв)</h2>
+            <span class="pill" id="selectedSymbolPill">—</span>
+          </div>
+          <div class="signal" id="mainSignal">—</div>
+          <div class="row2">
+            <div><span>TP:</span> <span id="tp">—</span></div>
+            <div><span>SL:</span> <span id="sl">—</span></div>
+          </div>
+          <div id="mainScore" style="margin-top: 8px">—</div>
+        </div>
+
+        <div class="card">
+          <div class="title">
+            <h3>Сигнали по таймфреймах</h3>
+          </div>
+          <div class="tf-grid" id="tfGrid"></div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const API_FAPI = "https://fapi.binance.com";
+      const TF_LIST = [
+        { key: "1m", label: "1хв" },
+        { key: "5m", label: "5хв" },
+        { key: "15m", label: "15хв" },
+        { key: "30m", label: "30хв" },
+        { key: "1h", label: "1година" },
+        { key: "4h", label: "4години" },
+        { key: "1d", label: "1день" },
+        { key: "1w", label: "1тиждень" },
+        { key: "1M", label: "1місяць" }
+      ];
+      const TF_WEIGHTS = {
+        "1m": 1.0,
+        "5m": 1.2,
+        "15m": 1.4,
+        "30m": 1.6,
+        "1h": 1.4,
+        "4h": 0.8,
+        "1d": 0.6,
+        "1w": 0.4,
+        "1M": 0.2
+      };
+      const ATR_PERIOD = 14;
+      const TP_MULT = 1.5;
+      const SL_MULT = 1.0;
+
+      let allSymbols = [];
+      let symbolMap = new Map();
+      let selectedSymbol = null;
+
+      const symbolInput = document.getElementById("symbolInput");
+      const dropdown = document.getElementById("dropdown");
+      const startBtn = document.getElementById("startBtn");
+      const statusEl = document.getElementById("status");
+      const tfGrid = document.getElementById("tfGrid");
+      const mainSignalEl = document.getElementById("mainSignal");
+      const mainScoreEl = document.getElementById("mainScore");
+      const tpEl = document.getElementById("tp");
+      const slEl = document.getElementById("sl");
+      const selectedSymbolPill = document.getElementById(
+        "selectedSymbolPill"
+      );
+
+      function toStep(value, step) {
+        if (!step) return value;
+        const p = Math.max(0, (step.split(".")[1] || "").length);
+        const scaled = Math.round(value / parseFloat(step)) * parseFloat(step);
+        return parseFloat(scaled.toFixed(p));
+      }
+      function fmtPrice(value, tickSize) {
+        if (!tickSize) return String(value);
+        const p = Math.max(0, (tickSize.split(".")[1] || "").length);
+        return Number(value).toFixed(p);
+      }
+      function signLabel(score) {
+        if (score > 0.5) return "лонг";
+        if (score < -0.5) return "шорт";
+        return "нейтрально";
+      }
+
+      function filterSymbols(q) {
+        const s = (q || "").trim().toUpperCase();
+        if (!s) return allSymbols.slice(0, 50);
+        return allSymbols.filter((x) => x.symbol.includes(s)).slice(0, 50);
+      }
+      function renderDropdown(list) {
+        dropdown.innerHTML = "";
+        if (!list.length) {
+          dropdown.classList.remove("open");
+          return;
+        }
+        list.forEach((item, idx) => {
+          const div = document.createElement("div");
+          div.className = "option" + (idx === 0 ? " active" : "");
+          div.dataset.symbol = item.symbol;
+          div.innerHTML = `
+            <span>${item.symbol}</span>
+            <span class="badge">${item.baseAsset}/${item.quoteAsset}</span>
+          `;
+          div.addEventListener("click", () => chooseSymbol(item.symbol));
+          dropdown.appendChild(div);
+        });
+        dropdown.classList.add("open");
+      }
+      function chooseSymbol(sym) {
+        selectedSymbol = sym;
+        symbolInput.value = sym;
+        dropdown.classList.remove("open");
+        selectedSymbolPill.textContent = sym;
+        startBtn.disabled = false;
+      }
+
+      symbolInput.addEventListener("input", (e) => {
+        const v = e.target.value;
+        const list = filterSymbols(v);
+        renderDropdown(list);
+      });
+      symbolInput.addEventListener("focus", () => {
+        renderDropdown(filterSymbols(symbolInput.value));
+      });
+      document.addEventListener("click", (e) => {
+        if (!document.getElementById("symbolCombo").contains(e.target)) {
+          dropdown.classList.remove("open");
+        }
+      });
+      symbolInput.addEventListener("keydown", (e) => {
+        if (!dropdown.classList.contains("open")) return;
+        const items = [...dropdown.querySelectorAll(".option")];
+        const active = dropdown.querySelector(".option.active");
+        let idx = items.indexOf(active);
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          idx = Math.min(items.length - 1, idx + 1);
+          items.forEach((el) => el.classList.remove("active"));
+          items[idx].classList.add("active");
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          idx = Math.max(0, idx - 1);
+          items.forEach((el) => el.classList.remove("active"));
+          items[idx].classList.add("active");
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          if (items[idx]) chooseSymbol(items[idx].dataset.symbol);
+        }
+      });
+
+      async function loadExchangeInfo() {
+        statusEl.innerHTML =
+          '<span class="loader"></span>Завантаження символів…';
+        const url = `${API_FAPI}/fapi/v1/exchangeInfo`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("exchangeInfo error");
+        const data = await res.json();
+        const list = data.symbols
+          .filter(
+            (s) =>
+              s.contractType === "PERPETUAL" &&
+              s.status === "TRADING" &&
+              s.quoteAsset === "USDT"
+          )
+          .map((s) => {
+            const priceFilter = s.filters.find(
+              (f) => f.filterType === "PRICE_FILTER"
+            );
+            const lotFilter = s.filters.find(
+              (f) => f.filterType === "LOT_SIZE"
+            );
+            symbolMap.set(s.symbol, {
+              tickSize: priceFilter ? priceFilter.tickSize : "0.01",
+              stepSize: lotFilter ? lotFilter.stepSize : "0.001",
+              baseAsset: s.baseAsset,
+              quoteAsset: s.quoteAsset
+            });
+            return {
+              symbol: s.symbol,
+              baseAsset: s.baseAsset,
+              quoteAsset: s.quoteAsset
+            };
+          })
+          .sort((a, b) => (a.symbol > b.symbol ? 1 : -1));
+        allSymbols = list;
+        statusEl.textContent = "Символи завантажено. Оберіть зі списку.";
+      }
+
+      async function fetchKlines(symbol, interval, limit = 500) {
+        const url =
+          `${API_FAPI}/fapi/v1/klines?symbol=${symbol}` +
+          `&interval=${interval}&limit=${limit}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("klines error " + interval);
+        const data = await res.json();
+        return data.map((k) => ({
+          time: k[0],
+          open: Number(k[1]),
+          high: Number(k[2]),
+          low: Number(k[3]),
+          close: Number(k[4]),
+          volume: Number(k[5])
+        }));
+      }
+
+      function sma(values, p) {
+        const out = [];
+        let sum = 0;
+        for (let i = 0; i < values.length; i++) {
+          sum += values[i];
+          if (i >= p) sum -= values[i - p];
+          out.push(i >= p - 1 ? sum / p : NaN);
+        }
+        return out;
+      }
+      function ema(values, p) {
+        const out = [];
+        const k = 2 / (p + 1);
+        let prev = values[0];
+        out[0] = prev;
+        for (let i = 1; i < values.length; i++) {
+          const cur = values[i] * k + prev * (1 - k);
+          out[i] = cur;
+          prev = cur;
+        }
+        return out;
+      }
+      function stddev(values, p) {
+        const out = [];
+        let sum = 0,
+          sumsq = 0;
+        for (let i = 0; i < values.length; i++) {
+          const v = values[i];
+          sum += v;
+          sumsq += v * v;
+          if (i >= p) {
+            sum -= values[i - p];
+            sumsq -= values[i - p] * values[i - p];
+          }
+          if (i >= p - 1) {
+            const mean = sum / p;
+            const variance = sumsq / p - mean * mean;
+            out.push(Math.sqrt(Math.max(0, variance)));
+          } else out.push(NaN);
+        }
+        return out;
+      }
+      function highest(values, p) {
+        const out = [];
+        let dq = [];
+        for (let i = 0; i < values.length; i++) {
+          while (dq.length && dq[0] <= i - p) dq.shift();
+          while (dq.length && values[dq[dq.length - 1]] <= values[i]) dq.pop();
+          dq.push(i);
+          out.push(i >= p - 1 ? values[dq[0]] : NaN);
+        }
+        return out;
+      }
+      function lowest(values, p) {
+        const out = [];
+        let dq = [];
+        for (let i = 0; i < values.length; i++) {
+          while (dq.length && dq[0] <= i - p) dq.shift();
+          while (dq.length && values[dq[dq.length - 1]] >= values[i]) dq.pop();
+          dq.push(i);
+          out.push(i >= p - 1 ? values[dq[0]] : NaN);
+        }
+        return out;
+      }
+
+      function rsi(closes, p = 14) {
+        const out = new Array(closes.length).fill(NaN);
+        let gain = 0,
+          loss = 0;
+        for (let i = 1; i < closes.length; i++) {
+          const ch = closes[i] - closes[i - 1];
+          if (i <= p) {
+            if (ch > 0) gain += ch;
+            else loss -= ch;
+            if (i === p) {
+              let avgG = gain / p;
+              let avgL = loss / p;
+              let rs = avgL === 0 ? 100 : avgG / avgL;
+              out[i] = 100 - 100 / (1 + rs);
+              var prevAvgG = avgG;
+              var prevAvgL = avgL;
+            }
+          } else {
+            const g = ch > 0 ? ch : 0;
+            const l = ch < 0 ? -ch : 0;
+            prevAvgG = (prevAvgG * (p - 1) + g) / p;
+            prevAvgL = (prevAvgL * (p - 1) + l) / p;
+            const rs = prevAvgL === 0 ? 100 : prevAvgG / prevAvgL;
+            out[i] = 100 - 100 / (1 + rs);
+          }
+        }
+        return out;
+      }
+      function macd(closes, fast = 12, slow = 26, signalP = 9) {
+        const emaFast = ema(closes, fast);
+        const emaSlow = ema(closes, slow);
+        const macdLine = closes.map((_, i) => emaFast[i] - emaSlow[i]);
+        const signalLine = ema(macdLine, signalP);
+        const hist = macdLine.map((v, i) => v - signalLine[i]);
+        return { macdLine, signalLine, hist };
+      }
+      function stochastic(highs, lows, closes, k = 14, d = 3) {
+        const hh = highest(highs, k);
+        const ll = lowest(lows, k);
+        const kArr = closes.map((c, i) => {
+          if (Number.isNaN(hh[i]) || Number.isNaN(ll[i])) return NaN;
+          return ((c - ll[i]) / (hh[i] - ll[i])) * 100;
+        });
+        const dArr = sma(kArr, d);
+        return { k: kArr, d: dArr };
+      }
+      function bollinger(closes, p = 20, mult = 2) {
+        const m = sma(closes, p);
+        const sd = stddev(closes, p);
+        const upper = m.map((v, i) => v + mult * sd[i]);
+        const lower = m.map((v, i) => v - mult * sd[i]);
+        return { middle: m, upper, lower };
+      }
+      function cci(highs, lows, closes, p = 20) {
+        const tp = closes.map((c, i) => (highs[i] + lows[i] + c) / 3);
+        const tpSMA = sma(tp, p);
+        const md = tp.map((_, i) => {
+          if (i < p - 1) return NaN;
+          let sum = 0;
+          for (let j = i - p + 1; j <= i; j++) {
+            sum += Math.abs(tp[j] - tpSMA[i]);
+          }
+          return sum / p;
+        });
+        return tp.map((_, i) => {
+          if (i < p - 1) return NaN;
+          return (tp[i] - tpSMA[i]) / (0.015 * md[i]);
+        });
+      }
+      function mfi(highs, lows, closes, volumes, p = 14) {
+        const tp = closes.map((c, i) => (highs[i] + lows[i] + c) / 3);
+        const rawMF = tp.map((t, i) => t * volumes[i]);
+        const out = new Array(closes.length).fill(NaN);
+        for (let i = p; i < closes.length; i++) {
+          let pos = 0,
+            neg = 0;
+          for (let j = i - p + 1; j <= i; j++) {
+            if (tp[j] > tp[j - 1]) pos += rawMF[j];
+            else if (tp[j] < tp[j - 1]) neg += rawMF[j];
+          }
+          if (neg === 0) out[i] = 100;
+          else {
+            const mr = pos / neg;
+            out[i] = 100 - 100 / (1 + mr);
+          }
+        }
+        return out;
+      }
+      function williamsR(highs, lows, closes, p = 14) {
+        const hh = highest(highs, p);
+        const ll = lowest(lows, p);
+        return closes.map((c, i) => {
+          if (Number.isNaN(hh[i]) || Number.isNaN(ll[i])) return NaN;
+          return (-100 * (hh[i] - c)) / (hh[i] - ll[i]);
+        });
+      }
+      function trueRange(highs, lows, closes) {
+        const tr = new Array(closes.length).fill(NaN);
+        tr[0] = highs[0] - lows[0];
+        for (let i = 1; i < closes.length; i++) {
+          tr[i] = Math.max(
+            highs[i] - lows[i],
+            Math.abs(highs[i] - closes[i - 1]),
+            Math.abs(lows[i] - closes[i - 1])
+          );
+        }
+        return tr;
+      }
+      function atr(highs, lows, closes, p = 14) {
+        const tr = trueRange(highs, lows, closes);
+        const out = new Array(closes.length).fill(NaN);
+        let prev = 0;
+        for (let i = 0; i < tr.length; i++) {
+          if (i < p) {
+            prev += tr[i] || 0;
+            if (i === p - 1) {
+              prev = prev / p;
+              out[i] = prev;
+            }
+          } else {
+            prev = (prev * (p - 1) + tr[i]) / p;
+            out[i] = prev;
+          }
+        }
+        return out;
+      }
+      function adx(highs, lows, closes, p = 14) {
+        const len = closes.length;
+        const trArr = trueRange(highs, lows, closes);
+        const plusDM = new Array(len).fill(0);
+        const minusDM = new Array(len).fill(0);
+        for (let i = 1; i < len; i++) {
+          const upMove = highs[i] - highs[i - 1];
+          const downMove = lows[i - 1] - lows[i];
+          plusDM[i] = upMove > downMove && upMove > 0 ? upMove : 0;
+          minusDM[i] = downMove > upMove && downMove > 0 ? downMove : 0;
+        }
+        function rma(src, p) {
+          const out = new Array(len).fill(NaN);
+          let prev = 0;
+          for (let i = 0; i < len; i++) {
+            if (i < p) {
+              prev += src[i] || 0;
+              if (i === p - 1) {
+                prev /= p;
+                out[i] = prev;
+              }
+            } else {
+              prev = (prev * (p - 1) + src[i]) / p;
+              out[i] = prev;
+            }
+          }
+          return out;
+        }
+        const trR = rma(trArr, p);
+        const plusR = rma(plusDM, p);
+        const minusR = rma(minusDM, p);
+        const plusDI = plusR.map((v, i) => (100 * v) / trR[i]);
+        const minusDI = minusR.map((v, i) => (100 * v) / trR[i]);
+        const dx = plusDI.map((v, i) =>
+          Math.abs((v - minusDI[i]) / (v + minusDI[i])) * 100
+        );
+        const adxArr = rma(dx, p);
+        return { adx: adxArr, plusDI, minusDI };
+      }
+      function obv(closes, volumes) {
+        const out = new Array(closes.length).fill(0);
+        for (let i = 1; i < closes.length; i++) {
+          if (closes[i] > closes[i - 1]) out[i] = out[i - 1] + volumes[i];
+          else if (closes[i] < closes[i - 1])
+            out[i] = out[i - 1] - volumes[i];
+          else out[i] = out[i - 1];
+        }
+        return out;
+      }
+      function roc(closes, p = 12) {
+        return closes.map((c, i) =>
+          i >= p ? ((c - closes[i - p]) / closes[i - p]) * 100 : NaN
+        );
+      }
+      function superTrend(highs, lows, closes, p = 10, mult = 3) {
+        const len = closes.length;
+        const atrArr = atr(highs, lows, closes, p);
+        const hl2 = highs.map((h, i) => (h + lows[i]) / 2);
+        const upperBand = new Array(len).fill(NaN);
+        const lowerBand = new Array(len).fill(NaN);
+        for (let i = 0; i < len; i++) {
+          upperBand[i] = hl2[i] + mult * atrArr[i];
+          lowerBand[i] = hl2[i] - mult * atrArr[i];
+        }
+        const superT = new Array(len).fill(NaN);
+        const dir = new Array(len).fill(1);
+        for (let i = 1; i < len; i++) {
+          let prevSuper = superT[i - 1];
+          let curUpper = upperBand[i];
+          let curLower = lowerBand[i];
+
+          if (prevSuper !== undefined && !Number.isNaN(prevSuper)) {
+            if (closes[i] > prevSuper) dir[i] = 1;
+            else if (closes[i] < prevSuper) dir[i] = -1;
+            else dir[i] = dir[i - 1];
+
+            if (dir[i] === 1) {
+              superT[i] = Math.max(curLower, prevSuper);
+            } else {
+              superT[i] = Math.min(curUpper, prevSuper);
+            }
+          } else {
+            dir[i] = closes[i] >= hl2[i] ? 1 : -1;
+            superT[i] = dir[i] === 1 ? curLower : curUpper;
+          }
+        }
+        return { superTrend: superT, direction: dir };
+      }
+      function psar(highs, lows, step = 0.02, max = 0.2) {
+        const len = highs.length;
+        if (len < 2) return { psar: [], bull: false };
+        let psar = lows[0],
+          bull = true,
+          af = step,
+          ep = highs[0];
+        const out = new Array(len).fill(NaN);
+
+        for (let i = 1; i < len; i++) {
+          out[i] = psar;
+          if (bull) {
+            psar = psar + af * (ep - psar);
+            if (lows[i] < psar) {
+              bull = false;
+              psar = ep;
+              ep = lows[i];
+              af = step;
+            } else {
+              if (highs[i] > ep) {
+                ep = highs[i];
+                af = Math.min(max, af + step);
+              }
+            }
+          } else {
+            psar = psar + af * (ep - psar);
+            if (highs[i] > psar) {
+              bull = true;
+              psar = ep;
+              ep = highs[i];
+              af = step;
+            } else {
+              if (lows[i] < ep) {
+                ep = lows[i];
+                af = Math.min(max, af + step);
+              }
+            }
+          }
+        }
+        return { psar: out, bull };
+      }
+      function ichimoku(highs, lows, closes) {
+        const convP = 9,
+          baseP = 26,
+          spanBP = 52;
+        const convHigh = highest(highs, convP);
+        const convLow = lowest(lows, convP);
+        const baseHigh = highest(highs, baseP);
+        const baseLow = lowest(lows, baseP);
+        const conv = closes.map((_, i) =>
+          Number.isNaN(convHigh[i]) || Number.isNaN(convLow[i])
+            ? NaN
+            : (convHigh[i] + convLow[i]) / 2
+        );
+        const base = closes.map((_, i) =>
+          Number.isNaN(baseHigh[i]) || Number.isNaN(baseLow[i])
+            ? NaN
+            : (baseHigh[i] + baseLow[i]) / 2
+        );
+        return { conv, base };
+      }
+
+      function indicatorVotes(ohlc) {
+        const { open, high, low, close, volume } = ohlc;
+        const n = close.length;
+        theLast = n - 1; // avoid accidental global? We'll declare properly
+      }
+    </script>
+    <script>
+      // Fix variable scope for last index
+      function indicatorVotes(ohlc) {
+        const { open, high, low, close, volume } = ohlc;
+        const n = close.length;
+        const last = n - 1;
+
+        const sma20 = sma(close, 20);
+        const v1 =
+          sma20[last] > sma20[last - 1]
+            ? 1
+            : sma20[last] < sma20[last - 1]
+            ? -1
+            : 0;
+
+        const sma50 = sma(close, 50);
+        const v2 =
+          sma50[last] > sma50[last - 1]
+            ? 1
+            : sma50[last] < sma50[last - 1]
+            ? -1
+            : 0;
+
+        const ema9 = ema(close, 9);
+        const v3 = close[last] > ema9[last] ? 1 : close[last] < ema9[last] ? -1 : 0;
+
+        const ema21 = ema(close, 21);
+        const v4 = close[last] > ema21[last] ? 1 : close[last] < ema21[last] ? -1 : 0;
+
+        const ema50 = ema(close, 50);
+        const v5 = close[last] > ema50[last] ? 1 : close[last] < ema50[last] ? -1 : 0;
+
+        const rsi14 = rsi(close, 14);
+        const rLast = rsi14[last];
+        const v6 = rLast > 60 ? 1 : rLast < 40 ? -1 : 0;
+
+        const v7 =
+          rsi14[last] > rsi14[last - 1]
+            ? 1
+            : rsi14[last] < rsi14[last - 1]
+            ? -1
+            : 0;
+
+        const mac = macd(close);
+        const v8 = mac.hist[last] > 0 ? 1 : mac.hist[last] < 0 ? -1 : 0;
+
+        const st = stochastic(high, low, close);
+        const v9 = st.k[last] > st.d[last] ? 1 : st.k[last] < st.d[last] ? -1 : 0;
+
+        const bb = bollinger(close, 20, 2);
+        const v10 =
+          close[last] > bb.middle[last]
+            ? 1
+            : close[last] < bb.middle[last]
+            ? -1
+            : 0;
+
+        const cci20 = cci(high, low, close, 20);
+        const v11 = cci20[last] > 100 ? 1 : cci20[last] < -100 ? -1 : 0;
+
+        const mfi14 = mfi(high, low, close, volume, 14);
+        const v12 = mfi14[last] > 60 ? 1 : mfi14[last] < 40 ? -1 : 0;
+
+        const wr = williamsR(high, low, close, 14);
+        const v13 = wr[last] > -50 ? 1 : wr[last] < -80 ? -1 : 0;
+
+        const adx14 = adx(high, low, close, 14);
+        const v14 =
+          adx14.plusDI[last] > adx14.minusDI[last]
+            ? 1
+            : adx14.plusDI[last] < adx14.minusDI[last]
+            ? -1
+            : 0;
+
+        const atr14 = atr(high, low, close, 14);
+        const upperATR = bb.middle.map((m, i) => m + atr14[i]);
+        const lowerATR = bb.middle.map((m, i) => m - atr14[i]);
+        const v15 =
+          close[last] > upperATR[last]
+            ? 1
+            : close[last] < lowerATR[last]
+            ? -1
+            : 0;
+
+        const obvArr = obv(close, volume);
+        const obvE = ema(obvArr, 20);
+        const v16 =
+          obvE[last] > obvE[last - 1]
+            ? 1
+            : obvE[last] < obvE[last - 1]
+            ? -1
+            : 0;
+
+        const roc12 = roc(close, 12);
+        const v17 = roc12[last] > 0 ? 1 : roc12[last] < 0 ? -1 : 0;
+
+        const stx = superTrend(high, low, close, 10, 3);
+        const v18 = stx.direction[last] >= 0 ? 1 : -1;
+
+        const ps = psar(high, low, 0.02, 0.2);
+        const v19 = ps.bull ? 1 : -1;
+
+        const ichi = ichimoku(high, low, close);
+        const v20 =
+          ichi.conv[last] > ichi.base[last]
+            ? 1
+            : ichi.conv[last] < ichi.base[last]
+            ? -1
+            : 0;
+
+        const votes = [
+          v1,
+          v2,
+          v3,
+          v4,
+          v5,
+          v6,
+          v7,
+          v8,
+          v9,
+          v10,
+          v11,
+          v12,
+          v13,
+          v14,
+          v15,
+          v16,
+          v17,
+          v18,
+          v19,
+          v20
+        ];
+        const sum = votes.reduce((a, b) => a + (Number.isNaN(b) ? 0 : b), 0);
+        const valid = votes.filter((v) => !Number.isNaN(v)).length || 1;
+        const score = sum / valid;
+        return { score, votes };
+      }
+
+      async function run(symbol) {
+        try {
+          startBtn.disabled = true;
+          statusEl.innerHTML =
+            '<span class="loader"></span>Завантаження даних…';
+          tfGrid.innerHTML = "";
+          mainSignalEl.textContent = "—";
+          tpEl.textContent = "—";
+          slEl.textContent = "—";
+          mainScoreEl.textContent = "—";
+
+          const tfData = {};
+          await Promise.all(
+            TF_LIST.map(async (tf) => {
+              const kl = await fetchKlines(symbol, tf.key, 500);
+              tfData[tf.key] = kl;
+            })
+          );
+
+          const tfSignals = {};
+          TF_LIST.forEach((tf) => {
+            const kl = tfData[tf.key];
+            const ohlc = {
+              open: kl.map((k) => k.open),
+              high: kl.map((k) => k.high),
+              low: kl.map((k) => k.low),
+              close: kl.map((k) => k.close),
+              volume: kl.map((k) => k.volume)
+            };
+            const { score } = indicatorVotes(ohlc);
+            tfSignals[tf.key] = {
+              score,
+              label: signLabel(score),
+              lastClose: ohlc.close[ohlc.close.length - 1]
+            };
+          });
+
+          TF_LIST.forEach((tf) => {
+            const card = document.createElement("div");
+            card.className = "card";
+            const s = tfSignals[tf.key];
+            const cls =
+              s.score > 0.5
+                ? "long"
+                : s.score < -0.5
+                ? "short"
+                : "neutral";
+            card.innerHTML = `
+              <div class="title">
+                <h3>${tf.label}</h3>
+                <span class="pill">${tf.key}</span>
+              </div>
+              <div class="signal ${cls}">
+                ${s.label}
+              </div>
+              <div class="kvs">
+                Бал: ${s.score.toFixed(2)}
+              </div>
+            `;
+            tfGrid.appendChild(card);
+          });
+
+          let wSum = 0;
+          let total = 0;
+          TF_LIST.forEach((tf) => {
+            const w = TF_WEIGHTS[tf.key] || 1;
+            wSum += w;
+            total += w * (tfSignals[tf.key]?.score || 0);
+          });
+          const mainScore = total / (wSum || 1);
+          const mainLabel = signLabel(mainScore);
+
+          mainSignalEl.textContent = mainLabel;
+          mainSignalEl.classList.remove("long", "short", "neutral");
+          if (mainScore > 0.5) mainSignalEl.classList.add("long");
+          else if (mainScore < -0.5) mainSignalEl.classList.add("short");
+          else mainSignalEl.classList.add("neutral");
+
+          mainScoreEl.textContent = `Сумарний бал: ${mainScore.toFixed(2)}`;
+
+          const kl30 = tfData["30m"];
+          const ohlc30 = {
+            high: kl30.map((k) => k.high),
+            low: kl30.map((k) => k.low),
+            close: kl30.map((k) => k.close)
+          };
+          const atr30 = atr(ohlc30.high, ohlc30.low, ohlc30.close, ATR_PERIOD);
+          const lastATR =
+            atr30[atr30.length - 1] ||
+            Math.max(0.001, (ohlc30.close.at(-1) || 0) * 0.003);
+          const curPrice =
+            tfSignals["1m"].lastClose ||
+            tfSignals["5m"].lastClose ||
+            ohlc30.close.at(-1);
+          const dir = mainScore > 0.5 ? 1 : mainScore < -0.5 ? -1 : 0;
+
+          const { tickSize } = symbolMap.get(symbol) || { tickSize: "0.01" };
+
+          let tp = "—",
+            sl = "—";
+          if (dir !== 0) {
+            const tpRaw =
+              dir > 0
+                ? curPrice + TP_MULT * lastATR
+                : curPrice - TP_MULT * lastATR;
+            const slRaw =
+              dir > 0
+                ? curPrice - SL_MULT * lastATR
+                : curPrice + SL_MULT * lastATR;
+            tp = fmtPrice(toStep(tpRaw, tickSize), tickSize);
+            sl = fmtPrice(toStep(slRaw, tickSize), tickSize);
+          }
+          tpEl.textContent = tp;
+          slEl.textContent = sl;
+
+          statusEl.textContent = "Готово.";
+        } catch (e) {
+          console.error(e);
+          statusEl.innerHTML =
+            '<span class="err">Помилка: ' + (e.message || e) + "</span>";
+        } finally {
+          startBtn.disabled = !selectedSymbol;
+        }
+      }
+
+      startBtn.addEventListener("click", () => {
+        if (!selectedSymbol) return;
+        run(selectedSymbol);
+      });
+
+      (async () => {
+        try {
+          await loadExchangeInfo();
+        } catch (e) {
+          console.error(e);
+          statusEl.innerHTML =
+            '<span class="err">Не вдалося завантажити символи. Оновіть сторінку.</span>';
+        }
+      })();
+    </script>
+  </body>
+</html>
